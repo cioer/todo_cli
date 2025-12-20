@@ -181,6 +181,17 @@ fn complete_task_with_path(path: &Path, id: &str, message: Option<&str>) -> Resu
                 return Err(AppError::invalid_input("task already completed"));
             }
 
+            let trimmed_message = match message {
+                Some(value) => {
+                    let trimmed = value.trim();
+                    if trimmed.is_empty() {
+                        return Err(AppError::invalid_input("message is required"));
+                    }
+                    Some(trimmed.to_string())
+                }
+                None => None,
+            };
+
             let completed_at = OffsetDateTime::now_utc()
                 .format(&Rfc3339)
                 .map_err(|err| AppError::invalid_data(err.to_string()))?;
@@ -188,13 +199,9 @@ fn complete_task_with_path(path: &Path, id: &str, message: Option<&str>) -> Resu
             task.status = TaskStatus::Completed;
             task.completed_at = Some(completed_at.clone());
 
-            if let Some(value) = message {
-                let trimmed = value.trim();
-                if trimmed.is_empty() {
-                    return Err(AppError::invalid_input("message is required"));
-                }
+            if let Some(message) = trimmed_message {
                 task.completion_history.push(CompletionEntry {
-                    message: trimmed.to_string(),
+                    message,
                     completed_at: completed_at.clone(),
                 });
             }
@@ -536,6 +543,27 @@ mod tests {
     }
 
     #[test]
+    fn complete_task_rejects_missing_id() {
+        let path = temp_path("complete-missing.json");
+        let task = Task {
+            id: "task-1".to_string(),
+            title: "demo".to_string(),
+            status: TaskStatus::Pending,
+            created_at: "2025-12-01T00:00:00Z".to_string(),
+            scheduled_at: None,
+            completed_at: None,
+            completion_history: Vec::new(),
+        };
+
+        json_store::save_tasks(&path, &[task]).unwrap();
+
+        let err = complete_task_with_path(&path, "task-2", None).unwrap_err();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(err.code(), "invalid_input");
+    }
+
+    #[test]
     fn delete_task_removes_task() {
         let path = temp_path("delete-task.json");
         let task = Task {
@@ -600,5 +628,7 @@ mod tests {
         assert_eq!(err.code(), "invalid_input");
     }
 }
+
+
 
 

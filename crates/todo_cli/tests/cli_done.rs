@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 fn temp_path(file_name: &str) -> PathBuf {
     let nanos = SystemTime::now()
@@ -56,6 +58,11 @@ fn done_command_marks_completed_and_records_history() {
     assert_eq!(history.len(), 1);
     assert_eq!(history[0]["message"], "ship it");
     assert!(history[0]["completed_at"].is_string());
+    OffsetDateTime::parse(
+        history[0]["completed_at"].as_str().expect("history completed_at string"),
+        &Rfc3339,
+    )
+    .expect("history completed_at rfc3339");
 }
 
 #[test]
@@ -82,6 +89,25 @@ fn done_command_rejects_already_completed() {
             }
         ]),
     );
+
+    let output = Command::new(exe)
+        .args(["done", "task-1"])
+        .env("TODOAPP_STORE_PATH", &store_path)
+        .output()
+        .expect("failed to run done command");
+
+    std::fs::remove_file(&store_path).ok();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERROR: invalid_input"));
+}
+
+#[test]
+fn done_command_reports_missing_id() {
+    let exe = env!("CARGO_BIN_EXE_todo_cli");
+    let store_path = temp_path("cli-done-missing.json");
+
+    write_store(&store_path, serde_json::json!([]));
 
     let output = Command::new(exe)
         .args(["done", "task-1"])
@@ -190,11 +216,22 @@ fn done_command_json_includes_fields() {
     assert_eq!(parsed["created_at"], "2025-12-20T00:00:00Z");
     assert_eq!(parsed["scheduled_at"], "2025-12-21T10:00:00Z");
     assert!(parsed["completed_at"].is_string());
+    OffsetDateTime::parse(
+        parsed["completed_at"].as_str().expect("completed_at string"),
+        &Rfc3339,
+    )
+    .expect("completed_at rfc3339");
     let history = parsed["completion_history"]
         .as_array()
         .expect("history array");
     assert_eq!(history.len(), 1);
     assert_eq!(history[0]["message"], "finished");
     assert!(history[0]["completed_at"].is_string());
+    OffsetDateTime::parse(
+        history[0]["completed_at"].as_str().expect("history completed_at string"),
+        &Rfc3339,
+    )
+    .expect("history completed_at rfc3339");
 }
+
 
