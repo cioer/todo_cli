@@ -1,0 +1,12 @@
+﻿[package]
+name = "todo_cli"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.53", features = ["derive"] }
+todo_core = { path = "../todo_core" }
+serde_json = "1.0.145"
+
+[dev-dependencies]
+time = { version = "0.3.36", features = ["formatting", "local-offset"] }

@@ -1,0 +1,8 @@
+[package]
+name = "todoapp"
+version = "0.0.1"
+authors = ["coc"]
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.42", features = ["derive"] }
