@@ -66,6 +66,11 @@ pub fn complete_task(id: &str, message: Option<&str>) -> Result<Task, AppError> 
     complete_task_with_path(&path, id, message)
 }
 
+pub fn schedule_task(id: &str, datetime: &str) -> Result<Task, AppError> {
+    let path = json_store::store_path()?;
+    schedule_task_with_path(&path, id, datetime)
+}
+
 fn list_today_with_path(path: &Path) -> Result<Vec<Task>, AppError> {
     let tasks = json_store::load_tasks(path)?;
     let local_offset = local_offset()?;
@@ -217,11 +222,45 @@ fn complete_task_with_path(path: &Path, id: &str, message: Option<&str>) -> Resu
     Ok(updated)
 }
 
+fn schedule_task_with_path(path: &Path, id: &str, datetime: &str) -> Result<Task, AppError> {
+    let trimmed_id = id.trim();
+    if trimmed_id.is_empty() {
+        return Err(AppError::invalid_input("id is required"));
+    }
+
+    let trimmed_datetime = datetime.trim();
+    if trimmed_datetime.is_empty() {
+        return Err(AppError::invalid_input("datetime is required"));
+    }
+
+    let parsed = OffsetDateTime::parse(trimmed_datetime, &Rfc3339)
+        .map_err(|_| AppError::invalid_input("datetime must be RFC3339"))?;
+    let scheduled_at = parsed
+        .format(&Rfc3339)
+        .map_err(|err| AppError::invalid_data(err.to_string()))?;
+
+    let mut tasks = json_store::load_tasks(path)?;
+    let mut updated_task = None;
+
+    for task in &mut tasks {
+        if task.id == trimmed_id {
+            task.scheduled_at = Some(scheduled_at.clone());
+            updated_task = Some(task.clone());
+            break;
+        }
+    }
+
+    let updated = updated_task.ok_or_else(|| AppError::invalid_input("task not found"))?;
+    json_store::save_tasks(path, &tasks)?;
+
+    Ok(updated)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         add_task_with_path, complete_task_with_path, delete_task_with_path, edit_task_with_path,
-        filter_tasks, ListMode,
+        filter_tasks, schedule_task_with_path, ListMode,
     };
     use crate::model::{CompletionEntry, Task, TaskStatus};
     use crate::storage::json_store;
@@ -626,6 +665,188 @@ mod tests {
         std::fs::remove_file(&path).ok();
 
         assert_eq!(err.code(), "invalid_input");
+    }
+
+    #[test]
+    fn schedule_task_updates_scheduled_at_and_persists() {
+        let path = temp_path("schedule-task.json");
+        let task = Task {
+            id: "task-1".to_string(),
+            title: "demo".to_string(),
+            status: TaskStatus::Pending,
+            created_at: "2025-12-01T00:00:00Z".to_string(),
+            scheduled_at: None,
+            completed_at: None,
+            completion_history: Vec::new(),
+        };
+
+        json_store::save_tasks(&path, &[task]).unwrap();
+
+        let updated = schedule_task_with_path(&path, "task-1", "2025-12-21T09:00:00Z").unwrap();
+        let loaded = json_store::load_tasks(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(
+            updated.scheduled_at,
+            Some("2025-12-21T09:00:00Z".to_string())
+        );
+        assert_eq!(loaded[0].scheduled_at, updated.scheduled_at);
+    }
+
+    #[test]
+    fn schedule_task_rejects_invalid_datetime() {
+        let path = temp_path("schedule-invalid.json");
+        let task = Task {
+            id: "task-1".to_string(),
+            title: "demo".to_string(),
+            status: TaskStatus::Pending,
+            created_at: "2025-12-01T00:00:00Z".to_string(),
+            scheduled_at: None,
+            completed_at: None,
+            completion_history: Vec::new(),
+        };
+
+        json_store::save_tasks(&path, &[task]).unwrap();
+
+        let err = schedule_task_with_path(&path, "task-1", "bad-date").unwrap_err();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(err.code(), "invalid_input");
+    }
+
+    #[test]
+    fn schedule_task_rejects_blank_id() {
+        let path = temp_path("schedule-blank-id.json");
+        let task = Task {
+            id: "task-1".to_string(),
+            title: "demo".to_string(),
+            status: TaskStatus::Pending,
+            created_at: "2025-12-01T00:00:00Z".to_string(),
+            scheduled_at: None,
+            completed_at: None,
+            completion_history: Vec::new(),
+        };
+
+        json_store::save_tasks(&path, &[task]).unwrap();
+
+        let err = schedule_task_with_path(&path, "  ", "2025-12-21T09:00:00Z").unwrap_err();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(err.code(), "invalid_input");
+    }
+
+    #[test]
+    fn schedule_task_rejects_unknown_id() {
+        let path = temp_path("schedule-missing.json");
+        let task = Task {
+            id: "task-1".to_string(),
+            title: "demo".to_string(),
+            status: TaskStatus::Pending,
+            created_at: "2025-12-01T00:00:00Z".to_string(),
+            scheduled_at: None,
+            completed_at: None,
+            completion_history: Vec::new(),
+        };
+
+        json_store::save_tasks(&path, &[task]).unwrap();
+
+        let err = schedule_task_with_path(&path, "task-2", "2025-12-21T09:00:00Z").unwrap_err();
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(err.code(), "invalid_input");
+    }
+
+    #[test]
+    fn schedule_task_keeps_list_filters_working() {
+        let path = temp_path("schedule-list.json");
+        let tasks = vec![
+            Task {
+                id: "task-1".to_string(),
+                title: "today".to_string(),
+                status: TaskStatus::Pending,
+                created_at: "2025-12-01T00:00:00Z".to_string(),
+                scheduled_at: None,
+                completed_at: None,
+                completion_history: Vec::new(),
+            },
+            Task {
+                id: "task-2".to_string(),
+                title: "future".to_string(),
+                status: TaskStatus::Pending,
+                created_at: "2025-12-01T00:00:00Z".to_string(),
+                scheduled_at: None,
+                completed_at: None,
+                completion_history: Vec::new(),
+            },
+        ];
+
+        json_store::save_tasks(&path, &tasks).unwrap();
+
+        schedule_task_with_path(&path, "task-1", "2025-12-20T12:00:00Z").unwrap();
+        schedule_task_with_path(&path, "task-2", "2025-12-21T09:00:00Z").unwrap();
+
+        let loaded = json_store::load_tasks(&path).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        let today = Date::from_calendar_date(2025, Month::December, 20).unwrap();
+        let offset = UtcOffset::UTC;
+
+        let today_tasks = filter_tasks(&loaded, today, offset, ListMode::Today).unwrap();
+        assert_eq!(today_tasks.len(), 1);
+        assert_eq!(today_tasks[0].id, "task-1");
+
+        let backlog_tasks = filter_tasks(&loaded, today, offset, ListMode::Backlog).unwrap();
+        assert_eq!(backlog_tasks.len(), 1);
+        assert_eq!(backlog_tasks[0].id, "task-2");
+    }
+
+    #[test]
+    fn list_today_backlog_with_scheduled_tasks_smoke() {
+        let path = temp_path("list-smoke.json");
+        let local_offset = UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC);
+        let now_local = OffsetDateTime::now_utc().to_offset(local_offset);
+        let today = now_local.date();
+        let today_dt = today
+            .with_hms(12, 0, 0)
+            .unwrap()
+            .assume_offset(local_offset);
+        let future_dt = (today + Duration::days(2))
+            .with_hms(12, 0, 0)
+            .unwrap()
+            .assume_offset(local_offset);
+
+        let tasks = vec![
+            Task {
+                id: "task-1".to_string(),
+                title: "today".to_string(),
+                status: TaskStatus::Pending,
+                created_at: now_local.format(&Rfc3339).unwrap(),
+                scheduled_at: Some(today_dt.format(&Rfc3339).unwrap()),
+                completed_at: None,
+                completion_history: Vec::new(),
+            },
+            Task {
+                id: "task-2".to_string(),
+                title: "future".to_string(),
+                status: TaskStatus::Pending,
+                created_at: now_local.format(&Rfc3339).unwrap(),
+                scheduled_at: Some(future_dt.format(&Rfc3339).unwrap()),
+                completed_at: None,
+                completion_history: Vec::new(),
+            },
+        ];
+
+        json_store::save_tasks(&path, &tasks).unwrap();
+
+        let today_tasks = super::list_today_with_path(&path).unwrap();
+        let backlog_tasks = super::list_backlog_with_path(&path).unwrap();
+
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(today_tasks.len(), 1);
+        assert_eq!(today_tasks[0].id, "task-1");
+        assert_eq!(backlog_tasks.len(), 1);
+        assert_eq!(backlog_tasks[0].id, "task-2");
     }
 }
 
