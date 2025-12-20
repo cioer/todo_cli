@@ -17,6 +17,8 @@ pub enum Command {
     Edit { id: String, new_title: String },
     Delete { id: String },
     Done { id: String, message: Option<String> },
+    Schedule { id: String, datetime: String },
+    Reschedule { id: String, datetime: String },
     List {
         #[command(subcommand)]
         list: ListCommand,

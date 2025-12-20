@@ -168,6 +168,30 @@ fn run_command(cli: Cli) -> Result<(), AppError> {
                 println!("Completed task: {} ({})", task.title, task.id);
             }
         }
+        Command::Schedule { id, datetime } => {
+            let task = todo_core::task_api::schedule_task(&id, &datetime)?;
+            if cli.json {
+                print_task_json(&task);
+            } else {
+                let scheduled_at = task.scheduled_at.as_deref().unwrap_or("-");
+                println!(
+                    "Scheduled task: {} ({}) at {}",
+                    task.title, task.id, scheduled_at
+                );
+            }
+        }
+        Command::Reschedule { id, datetime } => {
+            let task = todo_core::task_api::reschedule_task(&id, &datetime)?;
+            if cli.json {
+                print_task_json(&task);
+            } else {
+                let scheduled_at = task.scheduled_at.as_deref().unwrap_or("-");
+                println!(
+                    "Rescheduled task: {} ({}) at {}",
+                    task.title, task.id, scheduled_at
+                );
+            }
+        }
         Command::List { list } => {
             let tasks = match list {
                 ListCommand::Today => todo_core::task_api::list_today()?,
