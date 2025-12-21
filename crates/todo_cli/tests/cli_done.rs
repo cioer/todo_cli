@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
-use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 
 fn temp_path(file_name: &str) -> PathBuf {
     let nanos = SystemTime::now()
@@ -59,7 +59,9 @@ fn done_command_marks_completed_and_records_history() {
     assert_eq!(history[0]["message"], "ship it");
     assert!(history[0]["completed_at"].is_string());
     OffsetDateTime::parse(
-        history[0]["completed_at"].as_str().expect("history completed_at string"),
+        history[0]["completed_at"]
+            .as_str()
+            .expect("history completed_at string"),
         &Rfc3339,
     )
     .expect("history completed_at rfc3339");
@@ -217,7 +219,9 @@ fn done_command_json_includes_fields() {
     assert_eq!(parsed["scheduled_at"], "2025-12-21T10:00:00Z");
     assert!(parsed["completed_at"].is_string());
     OffsetDateTime::parse(
-        parsed["completed_at"].as_str().expect("completed_at string"),
+        parsed["completed_at"]
+            .as_str()
+            .expect("completed_at string"),
         &Rfc3339,
     )
     .expect("completed_at rfc3339");
@@ -228,10 +232,10 @@ fn done_command_json_includes_fields() {
     assert_eq!(history[0]["message"], "finished");
     assert!(history[0]["completed_at"].is_string());
     OffsetDateTime::parse(
-        history[0]["completed_at"].as_str().expect("history completed_at string"),
+        history[0]["completed_at"]
+            .as_str()
+            .expect("history completed_at string"),
         &Rfc3339,
     )
     .expect("history completed_at rfc3339");
 }
-
-

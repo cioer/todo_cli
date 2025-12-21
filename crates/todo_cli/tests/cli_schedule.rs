@@ -42,8 +42,7 @@ fn schedule_updates_task_and_persists() {
     assert_eq!(parsed["scheduled_at"], "2025-12-21T09:00:00Z");
 
     let stored: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&store_path).unwrap())
-            .expect("stored json");
+        serde_json::from_str(&std::fs::read_to_string(&store_path).unwrap()).expect("stored json");
     assert_eq!(
         stored["tasks"][0]["scheduled_at"],
         serde_json::Value::String("2025-12-21T09:00:00Z".to_string())

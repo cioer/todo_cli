@@ -3,25 +3,33 @@ use crate::model::Task;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-pub const SCHEMA_VERSION: u32 = 3;
+pub const SCHEMA_VERSION: u32 = 4;
 const STORE_FILE_NAME: &str = "tasks.json";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct StoredTasks {
     schema_version: u32,
     tasks: Vec<Task>,
+    #[serde(default)]
+    focused_task_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskState {
+    pub tasks: Vec<Task>,
+    pub focused_task_id: Option<String>,
 }
 
 pub fn store_path() -> Result<PathBuf, AppError> {
-    if let Ok(path) = std::env::var("TODOAPP_STORE_PATH") {
-        if !path.trim().is_empty() {
-            return Ok(PathBuf::from(path));
-        }
+    if let Ok(path) = std::env::var("TODOAPP_STORE_PATH")
+        && !path.trim().is_empty()
+    {
+        return Ok(PathBuf::from(path));
     }
 
     if cfg!(windows) {
-        let appdata = std::env::var("APPDATA")
-            .map_err(|_| AppError::invalid_data("APPDATA is not set"))?;
+        let appdata =
+            std::env::var("APPDATA").map_err(|_| AppError::invalid_data("APPDATA is not set"))?;
         Ok(PathBuf::from(appdata).join("todoapp").join(STORE_FILE_NAME))
     } else {
         let home = std::env::var("HOME").map_err(|_| AppError::invalid_data("HOME is not set"))?;
@@ -33,32 +41,63 @@ pub fn store_path() -> Result<PathBuf, AppError> {
 }
 
 pub fn load_tasks(path: &Path) -> Result<Vec<Task>, AppError> {
+    Ok(load_state(path)?.tasks)
+}
+
+pub fn load_state(path: &Path) -> Result<TaskState, AppError> {
     if !path.exists() {
-        return Ok(Vec::new());
+        return Ok(TaskState {
+            tasks: Vec::new(),
+            focused_task_id: None,
+        });
     }
 
-    let content =
-        std::fs::read_to_string(path).map_err(|err| AppError::io(err.to_string()))?;
+    let content = std::fs::read_to_string(path).map_err(|err| AppError::io(err.to_string()))?;
     let stored: StoredTasks =
         serde_json::from_str(&content).map_err(|err| AppError::invalid_data(err.to_string()))?;
 
-    match stored.schema_version {
-        1 | 2 | 3 => Ok(stored.tasks),
-        _ => Err(AppError::invalid_data("schema_version mismatch")),
+    if !(1..=SCHEMA_VERSION).contains(&stored.schema_version) {
+        return Err(AppError::invalid_data("schema_version mismatch"));
     }
+
+    if let Some(focused_task_id) = stored.focused_task_id.as_deref() {
+        let exists = stored.tasks.iter().any(|task| task.id == focused_task_id);
+        if !exists {
+            return Err(AppError::invalid_data("focused_task_id not found"));
+        }
+    }
+
+    Ok(TaskState {
+        tasks: stored.tasks,
+        focused_task_id: stored.focused_task_id,
+    })
 }
 
 pub fn save_tasks(path: &Path, tasks: &[Task]) -> Result<(), AppError> {
+    let focused_task_id = if path.exists() {
+        load_state(path)?.focused_task_id
+    } else {
+        None
+    };
+    let state = TaskState {
+        tasks: tasks.to_vec(),
+        focused_task_id,
+    };
+    save_state(path, &state)
+}
+
+pub fn save_state(path: &Path, state: &TaskState) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|err| AppError::io(err.to_string()))?;
     }
 
     let stored = StoredTasks {
         schema_version: SCHEMA_VERSION,
-        tasks: tasks.to_vec(),
+        tasks: state.tasks.to_vec(),
+        focused_task_id: state.focused_task_id.clone(),
     };
-    let content =
-        serde_json::to_string_pretty(&stored).map_err(|err| AppError::invalid_data(err.to_string()))?;
+    let content = serde_json::to_string_pretty(&stored)
+        .map_err(|err| AppError::invalid_data(err.to_string()))?;
     std::fs::write(path, content).map_err(|err| AppError::io(err.to_string()))?;
 
     #[cfg(unix)]
@@ -73,7 +112,7 @@ pub fn save_tasks(path: &Path, tasks: &[Task]) -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{load_tasks, save_tasks, SCHEMA_VERSION};
+    use super::{SCHEMA_VERSION, TaskState, load_state, load_tasks, save_state, save_tasks};
     use crate::model::{Task, TaskStatus};
     use std::fs;
     use std::path::PathBuf;
@@ -100,12 +139,38 @@ mod tests {
             completion_history: Vec::new(),
         };
 
-        save_tasks(&path, &[task.clone()]).unwrap();
+        save_tasks(&path, std::slice::from_ref(&task)).unwrap();
         let loaded = load_tasks(&path).unwrap();
         fs::remove_file(&path).ok();
 
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0], task);
+    }
+
+    #[test]
+    fn save_and_load_state_preserves_focus() {
+        let path = temp_path("state.json");
+        let task = Task {
+            id: "task-1".to_string(),
+            title: "demo".to_string(),
+            status: TaskStatus::Pending,
+            created_at: "2025-12-20T00:00:00Z".to_string(),
+            scheduled_at: None,
+            completed_at: None,
+            completion_history: Vec::new(),
+        };
+        let state = TaskState {
+            tasks: vec![task.clone()],
+            focused_task_id: Some(task.id.clone()),
+        };
+
+        save_state(&path, &state).unwrap();
+        let loaded = load_state(&path).unwrap();
+        fs::remove_file(&path).ok();
+
+        assert_eq!(loaded.tasks.len(), 1);
+        assert_eq!(loaded.tasks[0], task);
+        assert_eq!(loaded.focused_task_id, Some("task-1".to_string()));
     }
 
     #[test]
@@ -139,6 +204,18 @@ mod tests {
         );
         assert_eq!(loaded[0].completed_at, None);
         assert!(loaded[0].completion_history.is_empty());
+    }
+
+    #[test]
+    fn rejects_unknown_focused_task_id() {
+        let path = temp_path("bad-focus.json");
+        let content = "{\n  \"schema_version\": 4,\n  \"focused_task_id\": \"task-missing\",\n  \"tasks\": [\n    {\n      \"id\": \"task-1\",\n      \"title\": \"demo\",\n      \"status\": \"pending\",\n      \"created_at\": \"2025-12-20T00:00:00Z\"\n    }\n  ]\n}";
+        fs::write(&path, content).unwrap();
+
+        let err = load_state(&path).unwrap_err();
+        fs::remove_file(&path).ok();
+
+        assert_eq!(err.code(), "invalid_data");
     }
 
     #[test]

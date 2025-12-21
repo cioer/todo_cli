@@ -22,10 +22,22 @@ fn local_now_strings() -> (String, String) {
     )
 }
 
+fn past_future_strings() -> (String, String) {
+    let offset = UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC);
+    let now = OffsetDateTime::now_utc().to_offset(offset);
+    let past = now - Duration::days(1);
+    let future = now + Duration::days(1);
+    (
+        past.format(&Rfc3339).expect("format past"),
+        future.format(&Rfc3339).expect("format future"),
+    )
+}
+
 #[test]
 fn reschedule_plain_text_output_includes_datetime() {
     let exe = env!("CARGO_BIN_EXE_todo_cli");
     let store_path = temp_path("cli-reschedule-plain.json");
+    let (past, future) = past_future_strings();
 
     let content = serde_json::json!({
         "schema_version": 3,
@@ -35,7 +47,7 @@ fn reschedule_plain_text_output_includes_datetime() {
                 "title": "demo",
                 "status": "pending",
                 "created_at": "2025-12-20T00:00:00Z",
-                "scheduled_at": "2025-12-20T09:00:00Z"
+                "scheduled_at": past
             }
         ]
     });
@@ -43,7 +55,7 @@ fn reschedule_plain_text_output_includes_datetime() {
     std::fs::write(&store_path, serde_json::to_string_pretty(&content).unwrap()).unwrap();
 
     let output = Command::new(exe)
-        .args(["reschedule", "task-1", "2025-12-21T09:00:00Z"])
+        .args(["reschedule", "task-1", &future])
         .env("TODOAPP_STORE_PATH", &store_path)
         .output()
         .expect("failed to run reschedule command");
@@ -51,13 +63,14 @@ fn reschedule_plain_text_output_includes_datetime() {
     std::fs::remove_file(&store_path).ok();
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Rescheduled task: demo (task-1) at 2025-12-21T09:00:00Z"));
+    assert!(stdout.contains(&format!("Rescheduled task: demo (task-1) at {future}")));
 }
 
 #[test]
 fn reschedule_updates_task_and_persists() {
     let exe = env!("CARGO_BIN_EXE_todo_cli");
     let store_path = temp_path("cli-reschedule.json");
+    let (past, future) = past_future_strings();
 
     let content = serde_json::json!({
         "schema_version": 3,
@@ -67,7 +80,7 @@ fn reschedule_updates_task_and_persists() {
                 "title": "demo",
                 "status": "pending",
                 "created_at": "2025-12-20T00:00:00Z",
-                "scheduled_at": "2025-12-20T09:00:00Z"
+                "scheduled_at": past
             }
         ]
     });
@@ -75,7 +88,7 @@ fn reschedule_updates_task_and_persists() {
     std::fs::write(&store_path, serde_json::to_string_pretty(&content).unwrap()).unwrap();
 
     let output = Command::new(exe)
-        .args(["--json", "reschedule", "task-1", "2025-12-21T09:00:00Z"])
+        .args(["--json", "reschedule", "task-1", &future])
         .env("TODOAPP_STORE_PATH", &store_path)
         .output()
         .expect("failed to run reschedule command");
@@ -83,14 +96,13 @@ fn reschedule_updates_task_and_persists() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("json output");
-    assert_eq!(parsed["scheduled_at"], "2025-12-21T09:00:00Z");
+    assert_eq!(parsed["scheduled_at"], future);
 
     let stored: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&store_path).unwrap())
-            .expect("stored json");
+        serde_json::from_str(&std::fs::read_to_string(&store_path).unwrap()).expect("stored json");
     assert_eq!(
         stored["tasks"][0]["scheduled_at"],
-        serde_json::Value::String("2025-12-21T09:00:00Z".to_string())
+        serde_json::Value::String(future)
     );
 
     std::fs::remove_file(&store_path).ok();
@@ -100,6 +112,7 @@ fn reschedule_updates_task_and_persists() {
 fn reschedule_rejects_invalid_datetime() {
     let exe = env!("CARGO_BIN_EXE_todo_cli");
     let store_path = temp_path("cli-reschedule-invalid.json");
+    let (past, _) = past_future_strings();
 
     let content = serde_json::json!({
         "schema_version": 3,
@@ -109,7 +122,7 @@ fn reschedule_rejects_invalid_datetime() {
                 "title": "demo",
                 "status": "pending",
                 "created_at": "2025-12-20T00:00:00Z",
-                "scheduled_at": "2025-12-20T09:00:00Z"
+                "scheduled_at": past
             }
         ]
     });
@@ -132,6 +145,7 @@ fn reschedule_rejects_invalid_datetime() {
 fn reschedule_rejects_missing_id() {
     let exe = env!("CARGO_BIN_EXE_todo_cli");
     let store_path = temp_path("cli-reschedule-missing-id.json");
+    let (past, _) = past_future_strings();
 
     let content = serde_json::json!({
         "schema_version": 3,
@@ -141,7 +155,7 @@ fn reschedule_rejects_missing_id() {
                 "title": "demo",
                 "status": "pending",
                 "created_at": "2025-12-20T00:00:00Z",
-                "scheduled_at": "2025-12-20T09:00:00Z"
+                "scheduled_at": past
             }
         ]
     });
@@ -164,6 +178,7 @@ fn reschedule_rejects_missing_id() {
 fn reschedule_rejects_unknown_id() {
     let exe = env!("CARGO_BIN_EXE_todo_cli");
     let store_path = temp_path("cli-reschedule-missing.json");
+    let (past, _) = past_future_strings();
 
     let content = serde_json::json!({
         "schema_version": 3,
@@ -173,7 +188,7 @@ fn reschedule_rejects_unknown_id() {
                 "title": "demo",
                 "status": "pending",
                 "created_at": "2025-12-20T00:00:00Z",
-                "scheduled_at": "2025-12-20T09:00:00Z"
+                "scheduled_at": past
             }
         ]
     });
@@ -227,10 +242,45 @@ fn reschedule_rejects_unscheduled_task() {
 }
 
 #[test]
+fn reschedule_rejects_non_overdue_task() {
+    let exe = env!("CARGO_BIN_EXE_todo_cli");
+    let store_path = temp_path("cli-reschedule-not-overdue.json");
+    let (_, future) = past_future_strings();
+
+    let content = serde_json::json!({
+        "schema_version": 3,
+        "tasks": [
+            {
+                "id": "task-1",
+                "title": "demo",
+                "status": "pending",
+                "created_at": "2025-12-20T00:00:00Z",
+                "scheduled_at": future
+            }
+        ]
+    });
+
+    std::fs::write(&store_path, serde_json::to_string_pretty(&content).unwrap()).unwrap();
+
+    let output = Command::new(exe)
+        .args(["reschedule", "task-1", "2025-12-21T09:00:00Z"])
+        .env("TODOAPP_STORE_PATH", &store_path)
+        .output()
+        .expect("failed to run reschedule command");
+
+    std::fs::remove_file(&store_path).ok();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERROR: invalid_input"));
+    assert!(stderr.contains("task is not overdue"));
+}
+
+#[test]
 fn reschedule_updates_list_filters() {
     let exe = env!("CARGO_BIN_EXE_todo_cli");
     let store_path = temp_path("cli-reschedule-list.json");
     let (today, tomorrow) = local_now_strings();
+    let (yesterday, _) = past_future_strings();
 
     let content = serde_json::json!({
         "schema_version": 3,
@@ -247,7 +297,7 @@ fn reschedule_updates_list_filters() {
                 "title": "future task",
                 "status": "pending",
                 "created_at": "2025-12-20T00:00:00Z",
-                "scheduled_at": tomorrow
+                "scheduled_at": yesterday
             }
         ]
     });
@@ -255,7 +305,7 @@ fn reschedule_updates_list_filters() {
     std::fs::write(&store_path, serde_json::to_string_pretty(&content).unwrap()).unwrap();
 
     let output = Command::new(exe)
-        .args(["reschedule", "task-2", &today])
+        .args(["reschedule", "task-2", &tomorrow])
         .env("TODOAPP_STORE_PATH", &store_path)
         .output()
         .expect("failed to run reschedule command");
@@ -278,11 +328,12 @@ fn reschedule_updates_list_filters() {
     assert!(today_output.status.success());
     let today_stdout = String::from_utf8_lossy(&today_output.stdout);
     assert!(today_stdout.contains("today task"));
-    assert!(today_stdout.contains("future task"));
+    assert!(!today_stdout.contains("future task"));
 
     assert!(backlog_output.status.success());
     let backlog_stdout = String::from_utf8_lossy(&backlog_output.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&backlog_stdout).expect("json output");
     let tasks = parsed.as_array().expect("json array");
-    assert!(tasks.is_empty());
+    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks[0]["id"], "task-2");
 }

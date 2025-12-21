@@ -13,12 +13,31 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    Add { title: Option<String> },
-    Edit { id: String, new_title: String },
-    Delete { id: String },
-    Done { id: String, message: Option<String> },
-    Schedule { id: String, datetime: String },
-    Reschedule { id: String, datetime: String },
+    Add {
+        title: Option<String>,
+    },
+    Focus {
+        id: String,
+    },
+    Edit {
+        id: String,
+        new_title: String,
+    },
+    Delete {
+        id: String,
+    },
+    Done {
+        id: String,
+        message: Option<String>,
+    },
+    Schedule {
+        id: String,
+        datetime: String,
+    },
+    Reschedule {
+        id: String,
+        datetime: String,
+    },
     List {
         #[command(subcommand)]
         list: ListCommand,
@@ -30,4 +49,3 @@ pub enum ListCommand {
     Today,
     Backlog,
 }
-

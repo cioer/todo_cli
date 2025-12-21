@@ -11,34 +11,48 @@ fn status_label(status: TaskStatus) -> &'static str {
     }
 }
 
-fn print_tasks_plain(tasks: &[Task]) {
+fn print_tasks_plain(tasks: &[Task], focused_task_id: Option<&str>) -> Result<(), AppError> {
     for task in tasks {
+        let prefix = if focused_task_id == Some(task.id.as_str()) {
+            "[FOCUS] "
+        } else {
+            ""
+        };
         let scheduled_at = task.scheduled_at.as_deref().unwrap_or("-");
+        let overdue = todo_core::task_api::task_overdue(task)?;
+        let status = if overdue {
+            format!("{} (overdue)", status_label(task.status))
+        } else {
+            status_label(task.status).to_string()
+        };
         println!(
-            "{} | {} | {} | {} | {}",
-            task.id,
-            task.title,
-            status_label(task.status),
-            task.created_at,
-            scheduled_at
+            "{}{} | {} | {} | {} | {}",
+            prefix, task.id, task.title, status, task.created_at, scheduled_at
         );
     }
+
+    Ok(())
 }
 
-fn print_tasks_json(tasks: &[Task]) {
-    let payload: Vec<_> = tasks
-        .iter()
-        .map(|task| {
-            serde_json::json!({
-                "id": task.id,
-                "title": task.title,
-                "status": task.status,
-                "created_at": task.created_at,
-                "scheduled_at": task.scheduled_at,
-            })
-        })
-        .collect();
+fn print_tasks_json(tasks: &[Task]) -> Result<(), AppError> {
+    let mut payload = Vec::with_capacity(tasks.len());
+    for task in tasks {
+        let overdue = todo_core::task_api::task_overdue(task)?;
+        let status = if overdue {
+            format!("{} (overdue)", status_label(task.status))
+        } else {
+            status_label(task.status).to_string()
+        };
+        payload.push(serde_json::json!({
+            "id": task.id,
+            "title": task.title,
+            "status": status,
+            "created_at": task.created_at,
+            "scheduled_at": task.scheduled_at,
+        }));
+    }
     println!("{}", serde_json::Value::Array(payload));
+    Ok(())
 }
 
 fn print_task_json(task: &Task) {
@@ -144,6 +158,14 @@ fn run_command(cli: Cli) -> Result<(), AppError> {
                 println!("Added task: {} ({})", task.title, task.id);
             }
         }
+        Command::Focus { id } => {
+            let task = todo_core::task_api::set_focus(&id)?;
+            if cli.json {
+                print_task_json(&task);
+            } else {
+                println!("Focused task: {} ({})", task.title, task.id);
+            }
+        }
         Command::Edit { id, new_title } => {
             let task = todo_core::task_api::edit_task(&id, &new_title)?;
             if cli.json {
@@ -193,15 +215,23 @@ fn run_command(cli: Cli) -> Result<(), AppError> {
             }
         }
         Command::List { list } => {
-            let tasks = match list {
-                ListCommand::Today => todo_core::task_api::list_today()?,
-                ListCommand::Backlog => todo_core::task_api::list_backlog()?,
-            };
-
-            if cli.json {
-                print_tasks_json(&tasks);
-            } else {
-                print_tasks_plain(&tasks);
+            match list {
+                ListCommand::Today => {
+                    let result = todo_core::task_api::list_today_with_focus()?;
+                    if cli.json {
+                        print_tasks_json(&result.tasks)?;
+                    } else {
+                        print_tasks_plain(&result.tasks, result.focused_task_id.as_deref())?;
+                    }
+                }
+                ListCommand::Backlog => {
+                    let tasks = todo_core::task_api::list_backlog()?;
+                    if cli.json {
+                        print_tasks_json(&tasks)?;
+                    } else {
+                        print_tasks_plain(&tasks, None)?;
+                    }
+                }
             }
         }
     }
