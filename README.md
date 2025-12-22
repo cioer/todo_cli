@@ -1,192 +1,216 @@
+# todo_opt - CLI Task Manager
+
 ![GitHub Repo stars](https://img.shields.io/github/stars/skanehira/rust-cli-template?style=social)
-![GitHub](https://img.shields.io/github/license/skanehira/rust-cli-template)
-![GitHub all releases](https://img.shields.io/github/downloads/skanehira/rust-cli-template/total)
-![GitHub CI Status](https://img.shields.io/github/actions/workflow/status/skanehira/rust-cli-template/ci.yaml?branch=main)
-![GitHub Release Status](https://img.shields.io/github/v/release/skanehira/rust-cli-template)
+![License](https://img.shields.io/github/license/skanehira/rust-cli-template)
+![CI Status](https://img.shields.io/github/actions/workflow/status/skanehira/rust-cli-template/ci.yaml?branch=main)
 
-# todoapp
+**todo_opt** is a powerful, keyboard-centric CLI task manager built with Rust. It is designed for developers and power users who want to manage their tasks efficiently directly from the terminal. It supports urgency tracking, scheduling, notifications, and customizable themes.
 
-A CLI app scaffold for todoapp, generated from the rust-cli-template.
+## 1. Project Overview and Purpose
 
-## Overview
+The primary goal of `todo_opt` is to provide a fast, reliable, and unobtrusive way to manage tasks. Unlike heavy GUI applications, `todo_opt` integrates seamlessly into your terminal workflow.
 
-This repository is a generated Rust CLI application scaffold. It provides a
-minimal yet comprehensive foundation with the following features:
+**Key Features:**
+- **Fast & Lightweight:** Built with Rust for instant startup and minimal resource usage.
+- **Task Management:** Add, edit, delete, and list tasks with ease.
+- **Scheduling:** Schedule tasks for specific dates and times.
+- **Urgency Tracking:** Mark tasks as urgent to prioritize them.
+- **Notifications:** Desktop notifications for due tasks (Linux & Windows).
+- **Themes:** Built-in themes (`noir`, `solarized`, `default`) to match your terminal aesthetic.
+- **JSON Storage:** Data is stored in a simple, portable JSON format.
 
-- CLI argument parsing using [clap](https://github.com/clap-rs/clap) with derive
-  macros
-- GitHub Actions workflow for CI/CD
-  - Code coverage reporting with [octocov](https://github.com/k1LoW/octocov)
-  - Automatic benchmark result visualization and deployment with
-    [github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark)
-  - Security audit checks for dependencies
-  - Automated release workflow for publishing
-  - Automated dependency updates with Dependabot
+## 2. System Architecture
 
-## Project Guardrails
+The project is organized as a Rust workspace with a modular architecture:
 
-- CLI parser: use `clap` only.
-- Error format: `ERROR: <code> - <message>`.
-- Structured output: JSON only when `--json` is provided.
-- Storage: JSON file stored in user config dir; on Unix set file mode to 600, on Windows rely on user profile ACLs.
-
-## Project Structure
-
-Current project structure:
-
-```
-.
-+-- .github/                  # GitHub Actions workflows
-+-- benches/                  # Benchmark code (requires nightly Rust)
-+-- crates/
-|   +-- todo_core/
-|   |   +-- Cargo.toml
-|   |   +-- src/lib.rs
-|   +-- todo_cli/
-|       +-- Cargo.toml
-|       +-- src/main.rs
-+-- tests/
-|   +-- cli_smoke.rs
-+-- .gitignore
-+-- .octocov.yml
-+-- Cargo.toml
-+-- Cargo.lock
-+-- README.md
-+-- rust-toolchain.toml
+```mermaid
+graph TD
+    User[User] --> CLI[todo_cli / todo_opt]
+    CLI --> Core[todo_core]
+    Core --> Storage[JSON Storage]
+    Core --> Config[Configuration]
+    Core --> Notify[Notifications]
+    
+    subgraph "Crates"
+    CLI
+    Core
+    end
+    
+    subgraph "External Systems"
+    Storage
+    Config
+    Notify
+    end
 ```
 
-## Benchmark visualization
+- **crates/todo_cli**: The binary crate (`todo_opt`). It handles command-line argument parsing (using `clap`) and output formatting (using `tabled`).
+- **crates/todo_core**: The library crate. It contains the core business logic, data models (`Task`, `TaskStatus`), storage implementation (`json_store`), configuration management, and platform-specific notification logic.
 
-The benchmark results are automatically deployed to GitHub Pages for easy
-visualization and performance tracking. You need to create a `gh-pages` branch
-in your repository before first push.
-
-<img width="1165" alt="image" src="https://github.com/user-attachments/assets/333631e2-dee0-48f9-bc8e-d72c583857de" />
-
-<img width="874" alt="image" src="https://github.com/user-attachments/assets/6a07ea77-1294-422f-abd6-cb3e4281c26e" />
-
-## Coverage
-
-This project uses [octocov](https://github.com/k1LoW/octocov) to measure code
-coverage. During CI execution, coverage reports are automatically generated and
-displayed as comments on PRs or commits. The coverage history is also tracked,
-allowing you to see changes over time.
-
-The coverage reports are deployed to GitHub Pages for easy visualization.
-Coverage information can also be displayed in the README as a badge.
-
-<img width="936" alt="image" src="https://github.com/user-attachments/assets/8471d58a-06b3-4fd5-85e6-916959704c69" />
-
-The detailed configuration for octocov is managed in the `.octocov.yml` file.
-
-## Usage
+## 3. Installation and Setup
 
 ### Prerequisites
+- **Rust**: Latest stable version (install via [rustup](https://rustup.rs/)).
+- **Build Tools**:
+  - **Windows**: Visual Studio Build Tools or MinGW-w64.
+  - **Linux/macOS**: GCC or Clang (usually pre-installed).
 
-- [Rust](https://www.rust-lang.org/tools/install) (latest stable version)
-- C++ Build Tools (one of the following):
-  - **Windows (Recommended):** [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload.
-  - **Windows (Alternative):** MinGW-w64 (e.g., [w64devkit](https://github.com/skeeto/w64devkit)).
-  - **Linux/macOS:** GCC or Clang (usually pre-installed).
+### Installation
 
-### Setup on Windows (if using MinGW/w64devkit)
-
-If you do not have Visual Studio Build Tools installed, you can use `w64devkit`:
-
-1. Download [w64devkit](https://github.com/skeeto/w64devkit/releases).
-2. Extract the zip file (e.g., to `C:\w64devkit`).
-3. Add the `bin` folder to your PATH environment variable.
-4. Configure Rust to use the GNU toolchain:
+1. **Clone the repository:**
    ```bash
-   rustup toolchain install stable-x86_64-pc-windows-gnu
-   rustup default stable-x86_64-pc-windows-gnu
+   git clone https://github.com/your-username/todo_cli.git
+   cd todo_cli
    ```
 
-### Setup on Linux
-
-For Linux users, you will need the standard build tools and development headers for system notifications.
-
-1. **Install Rust:**
+2. **Build the project:**
    ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   cargo build --release
    ```
 
-2. **Install Dependencies:**
-   The application requires `dbus` development headers for notifications support.
-
-   *   **Ubuntu/Debian:**
-       ```bash
-       sudo apt update
-       sudo apt install build-essential libdbus-1-dev pkg-config
-       ```
-
-   *   **Fedora/RHEL:**
-       ```bash
-       sudo dnf install @development-tools dbus-devel pkgconf-pkg-config
-       ```
-
-   *   **Arch Linux:**
-       ```bash
-       sudo pacman -S base-devel dbus
-       ```
-
-### Running the Project
-
-To run the CLI application:
-
-```bash
-# Run the todo_cli binary
-cargo run --bin todo_cli
-
-# View help
-cargo run --bin todo_cli -- --help
-```
-
-### Build
-
-```bash
-cargo build --release --bin todo_cli
-```
-
-### Running Tests
-
-```bash
-cargo test
-# Or if you have cargo-nextest installed
-cargo nextest run
-```
-
-### Running Benchmarks
-
-Benchmarks require the nightly Rust channel:
-
-```bash
-cargo +nightly bench
-```
-
-### Release Process
-
-This template includes an automated release workflow. Follow these steps to
-create a release:
-
-1. Push a tag with your changes:
+3. **Install the binary:**
+   You can copy the binary to your PATH or use `cargo install`:
    ```bash
-   git tag v0.1.0  # Replace with the appropriate version number
-   git push origin v0.1.0
+   cargo install --path crates/todo_cli
    ```
 
-2. When the tag is pushed, the GitHub Actions `release.yml` workflow will
-   automatically execute. This workflow:
-   - Builds cross-platform binaries (Linux, macOS, Windows)
-   - Creates a GitHub Release
-   - Uploads binaries and changelog
+   The binary will be named `todo_opt`.
 
-The release configuration is managed in the `.github/workflows/release.yml` and
-`goreleasser.yaml` files.
+## 4. Configuration Options
 
----
+`todo_opt` is highly configurable. Configuration is stored in `config.json`.
 
-Feel free to customize this template to fit your specific needs!
+### Config Location
+- **Windows**: `%APPDATA%\todoapp\config.json`
+- **Linux/Unix**: `$HOME/.config/todoapp/config.json`
+- **Override**: Set the `TODOAPP_CONFIG_PATH` environment variable.
 
+### Configuration Format
+The configuration file is a JSON object with the following keys:
 
+| Key | Type | Description |
+|-----|------|-------------|
+| `theme` | String | UI Theme. Options: `default`, `noir`, `solarized`. |
+| `aliases` | Map | Custom command aliases. |
 
+**Example `config.json`:**
+```json
+{
+  "theme": "noir",
+  "aliases": {
+    "ls": "list today",
+    "all": "list backlog"
+  }
+}
+```
+
+### Environment Variables
+- `TODOAPP_STORE_PATH`: Override the path to the tasks data file (`tasks.json`).
+- `TODOAPP_CONFIG_PATH`: Override the path to the configuration file.
+
+## 5. Usage Examples and API
+
+Run `todo_opt --help` for a full list of commands.
+
+### Basic Commands
+
+- **Add a task:**
+  ```bash
+  todo_opt add "Buy milk"
+  todo_opt add "Finish report" --urgent
+  ```
+
+- **List tasks:**
+  ```bash
+  todo_opt list today     # List tasks for today
+  todo_opt list backlog   # List all other tasks
+  ```
+
+- **Mark as done:**
+  ```bash
+  todo_opt done <ID>
+  todo_opt done <ID> -m "Completed with notes"
+  ```
+
+- **Edit a task:**
+  ```bash
+  todo_opt edit <ID> "New Title"
+  ```
+
+- **Delete a task:**
+  ```bash
+  todo_opt delete <ID>
+  ```
+
+### Advanced Features
+
+- **Scheduling:**
+  ```bash
+  todo_opt schedule <ID> "2023-12-25 10:00"
+  todo_opt reschedule <ID> "2023-12-26 14:00"
+  ```
+  *Format supported: RFC3339 or simple date/time strings like "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DD".*
+
+- **Urgency:**
+  ```bash
+  todo_opt urgent <ID>          # Mark as urgent
+  todo_opt urgent <ID> --clear  # Remove urgency
+  ```
+
+- **Focus:**
+  ```bash
+  todo_opt focus <ID>  # Highlight a specific task
+  ```
+
+- **Notifications:**
+  ```bash
+  todo_opt notify      # Trigger notifications for due tasks
+  ```
+
+- **Show Details:**
+  ```bash
+  todo_opt show <ID>   # Show full details of a task
+  ```
+
+### Global Flags
+- `--json`: Output result in JSON format (useful for scripting).
+- `--config-override KEY=VALUE`: Override config for a single run (e.g., `--config-override theme=solarized`).
+
+## 6. Development Guidelines
+
+We welcome contributions! Please follow these guidelines:
+
+### Setup
+1. Fork and clone the repo.
+2. Install dependencies (standard Cargo crates).
+
+### Coding Standards
+- Follow Rust idioms and `clippy` suggestions.
+- Ensure code is formatted with `cargo fmt`.
+- Add tests for new functionality.
+
+### Contribution Process
+1. Create a feature branch (`git checkout -b feature/amazing-feature`).
+2. Commit your changes.
+3. Push to the branch.
+4. Open a Pull Request.
+
+## 7. Testing Methodology
+
+The project uses Rust's built-in testing framework.
+
+- **Unit Tests**: Located within source files (e.g., `mod tests`). Run with:
+  ```bash
+  cargo test
+  ```
+- **Integration Tests**: Located in the `tests/` directory. These tests run the CLI binary against temporary storage to verify end-to-end functionality.
+  ```bash
+  cargo test --test cli_smoke
+  ```
+- **CI/CD**: GitHub Actions workflows (`.github/workflows/`) run tests, linting (`clippy`), and formatting checks (`rustfmt`) on every push.
+
+## 8. License and Contact
+
+**License**: MIT License. See [LICENSE](LICENSE) for details.
+
+**Contact**:
+For bugs and feature requests, please open an issue on the GitHub repository.
