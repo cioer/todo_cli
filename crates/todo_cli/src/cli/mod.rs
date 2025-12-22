@@ -17,44 +17,80 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Add a new task
+    ///
+    /// Example: todo add "Buy milk" --urgent
     Add {
         title: Option<String>,
         #[arg(long)]
         urgent: bool,
     },
+    /// Focus on a specific task
+    ///
+    /// Example: todo focus 1
     Focus {
         id: String,
     },
+    /// Mark a task as urgent or clear urgency
+    ///
+    /// Example: todo urgent 1
+    /// Example: todo urgent 1 --clear
     Urgent {
         id: String,
         #[arg(long)]
         clear: bool,
     },
+    /// Edit a task's title
+    ///
+    /// Example: todo edit 1 "Buy organic milk"
     Edit {
         id: String,
         new_title: String,
     },
+    /// Delete a task
+    ///
+    /// Example: todo delete 1
     Delete {
         id: String,
     },
+    /// Show details of a task
+    ///
+    /// Example: todo show 1
     Show {
         id: String,
     },
+    /// Mark a task as completed
+    ///
+    /// Example: todo done 1
+    /// Example: todo done 1 -m "Bought from local store"
     Done {
         id: Option<String>,
         message: Option<String>,
         #[arg(short = 'm', long = "message", value_name = "MESSAGE")]
         message_flag: Option<String>,
     },
+    /// Schedule a task for a specific time
+    ///
+    /// Example: todo schedule 1 "2023-12-25 10:00"
     Schedule {
         id: String,
         datetime: String,
     },
+    /// Reschedule a task
+    ///
+    /// Example: todo reschedule 1 "2023-12-26 14:00"
     Reschedule {
         id: String,
         datetime: String,
     },
+    /// Send notifications for due tasks
+    ///
+    /// Example: todo notify
     Notify,
+    /// List tasks
+    ///
+    /// Example: todo list today
+    /// Example: todo list backlog
     List {
         #[command(subcommand)]
         list: ListCommand,
@@ -63,7 +99,13 @@ pub enum Command {
 
 #[derive(Subcommand, Debug)]
 pub enum ListCommand {
+    /// List tasks scheduled for today
+    ///
+    /// Example: todo list today
     Today,
+    /// List backlog tasks
+    ///
+    /// Example: todo list backlog
     Backlog,
 }
 

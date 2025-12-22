@@ -3,6 +3,10 @@ name = "todo_cli"
 version = "0.0.1"
 edition = "2024"
 
+[[bin]]
+name = "todo"
+path = "src/main.rs"
+
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
 todo_core = { path = "../todo_core" }

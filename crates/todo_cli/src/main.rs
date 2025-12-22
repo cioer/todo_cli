@@ -480,8 +480,17 @@ fn run_interactive(config: &Config, palette: &Palette) -> Result<(), AppError> {
         let cli = match Cli::try_parse_from(argv) {
             Ok(cli) => cli,
             Err(err) => {
-                eprintln!("ERROR: {}", normalize_parse_error(err));
-                continue;
+                use clap::error::ErrorKind;
+                match err.kind() {
+                    ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
+                        print!("{}", err);
+                        continue;
+                    }
+                    _ => {
+                        eprintln!("ERROR: {}", normalize_parse_error(err));
+                        continue;
+                    }
+                }
             }
         };
 
@@ -552,8 +561,17 @@ fn main() {
     let cli = match Cli::try_parse_from(cli_argv) {
         Ok(cli) => cli,
         Err(err) => {
-            eprintln!("ERROR: {}", normalize_parse_error(err));
-            std::process::exit(1);
+            use clap::error::ErrorKind;
+            match err.kind() {
+                ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
+                    print!("{}", err);
+                    std::process::exit(0);
+                }
+                _ => {
+                    eprintln!("ERROR: {}", normalize_parse_error(err));
+                    std::process::exit(1);
+                }
+            }
         }
     };
 

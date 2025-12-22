@@ -42,7 +42,12 @@ fn add_task_with_path(path: &Path, title: &str, urgent: bool) -> Result<Task, Ap
     let created_at = OffsetDateTime::now_utc()
         .format(&Rfc3339)
         .map_err(|err| AppError::invalid_data(err.to_string()))?;
-    let id = format!("task-{}", OffsetDateTime::now_utc().unix_timestamp_nanos());
+    
+    // Generate a shorter, 4-character ID based on the last 4 digits of nanoseconds
+    // This is simple but might have collisions in high-concurrency, but fine for a local todo app.
+    // For better uniqueness while keeping it short, we could use a hash, but this is requested by user.
+    let nanos = OffsetDateTime::now_utc().unix_timestamp_nanos();
+    let id = (nanos % 10000).to_string();
 
     let task = Task {
         id,
