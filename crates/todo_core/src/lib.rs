@@ -1,5 +1,7 @@
+pub mod config;
 pub mod error;
 pub mod model;
+pub mod notify;
 pub mod storage;
 pub mod task_api;
 
@@ -18,6 +20,7 @@ mod tests {
             scheduled_at: None,
             completed_at: None,
             completion_history: Vec::new(),
+            urgent: false,
         };
 
         assert_eq!(task.id, "task-1");
@@ -27,6 +30,7 @@ mod tests {
         assert_eq!(task.scheduled_at, None);
         assert_eq!(task.completed_at, None);
         assert!(task.completion_history.is_empty());
+        assert!(!task.urgent);
     }
 
     #[test]

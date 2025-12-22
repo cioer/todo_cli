@@ -20,6 +20,15 @@ fn write_store(path: &PathBuf, tasks: serde_json::Value) {
     std::fs::write(path, serde_json::to_string_pretty(&content).unwrap()).unwrap();
 }
 
+fn write_store_with_focus(path: &PathBuf, tasks: serde_json::Value, focused_task_id: Option<&str>) {
+    let content = serde_json::json!({
+        "schema_version": 4,
+        "focused_task_id": focused_task_id,
+        "tasks": tasks
+    });
+    std::fs::write(path, serde_json::to_string_pretty(&content).unwrap()).unwrap();
+}
+
 #[test]
 fn done_command_marks_completed_and_records_history() {
     let exe = env!("CARGO_BIN_EXE_todo_cli");
@@ -230,6 +239,208 @@ fn done_command_json_includes_fields() {
         .expect("history array");
     assert_eq!(history.len(), 1);
     assert_eq!(history[0]["message"], "finished");
+    assert!(history[0]["completed_at"].is_string());
+    OffsetDateTime::parse(
+        history[0]["completed_at"]
+            .as_str()
+            .expect("history completed_at string"),
+        &Rfc3339,
+    )
+    .expect("history completed_at rfc3339");
+}
+
+#[test]
+fn done_command_id_message_flag_records_history() {
+    let exe = env!("CARGO_BIN_EXE_todo_cli");
+    let store_path = temp_path("cli-done-id-message.json");
+
+    write_store(
+        &store_path,
+        serde_json::json!([
+            {
+                "id": "task-1",
+                "title": "flag",
+                "status": "pending",
+                "created_at": "2025-12-20T00:00:00Z",
+                "scheduled_at": null
+            }
+        ]),
+    );
+
+    let output = Command::new(exe)
+        .args(["done", "--message", "ship it", "task-1"])
+        .env("TODOAPP_STORE_PATH", &store_path)
+        .output()
+        .expect("failed to run done command");
+
+    assert!(output.status.success());
+
+    let stored: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&store_path).unwrap()).unwrap();
+    std::fs::remove_file(&store_path).ok();
+
+    let history = stored["tasks"][0]["completion_history"]
+        .as_array()
+        .expect("history array");
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["message"], "ship it");
+}
+
+#[test]
+fn done_command_rejects_duplicate_message_inputs() {
+    let exe = env!("CARGO_BIN_EXE_todo_cli");
+    let store_path = temp_path("cli-done-duplicate-message.json");
+
+    write_store(
+        &store_path,
+        serde_json::json!([
+            {
+                "id": "task-1",
+                "title": "dup",
+                "status": "pending",
+                "created_at": "2025-12-20T00:00:00Z",
+                "scheduled_at": null
+            }
+        ]),
+    );
+
+    let output = Command::new(exe)
+        .args(["done", "task-1", "note", "--message", "ship it"])
+        .env("TODOAPP_STORE_PATH", &store_path)
+        .output()
+        .expect("failed to run done command");
+
+    std::fs::remove_file(&store_path).ok();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERROR: invalid_input"));
+}
+
+#[test]
+fn done_command_id_clears_focus() {
+    let exe = env!("CARGO_BIN_EXE_todo_cli");
+    let store_path = temp_path("cli-done-id-clears-focus.json");
+
+    write_store_with_focus(
+        &store_path,
+        serde_json::json!([
+            {
+                "id": "task-1",
+                "title": "focus",
+                "status": "pending",
+                "created_at": "2025-12-20T00:00:00Z",
+                "scheduled_at": null
+            }
+        ]),
+        Some("task-1"),
+    );
+
+    let output = Command::new(exe)
+        .args(["done", "task-1"])
+        .env("TODOAPP_STORE_PATH", &store_path)
+        .output()
+        .expect("failed to run done command");
+
+    assert!(output.status.success());
+
+    let stored: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&store_path).unwrap()).unwrap();
+    std::fs::remove_file(&store_path).ok();
+
+    assert!(stored["focused_task_id"].is_null());
+}
+
+#[test]
+fn done_command_without_id_uses_focused_task() {
+    let exe = env!("CARGO_BIN_EXE_todo_cli");
+    let store_path = temp_path("cli-done-focus.json");
+
+    write_store_with_focus(
+        &store_path,
+        serde_json::json!([
+            {
+                "id": "task-1",
+                "title": "focus",
+                "status": "pending",
+                "created_at": "2025-12-20T00:00:00Z",
+                "scheduled_at": null
+            }
+        ]),
+        Some("task-1"),
+    );
+
+    let output = Command::new(exe)
+        .args(["done"])
+        .env("TODOAPP_STORE_PATH", &store_path)
+        .output()
+        .expect("failed to run done command");
+
+    assert!(output.status.success());
+
+    let stored: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&store_path).unwrap()).unwrap();
+    std::fs::remove_file(&store_path).ok();
+
+    assert_eq!(stored["tasks"][0]["status"], "completed");
+    assert!(stored["tasks"][0]["completed_at"].is_string());
+    assert!(stored["focused_task_id"].is_null());
+}
+
+#[test]
+fn done_command_without_id_rejects_missing_focus() {
+    let exe = env!("CARGO_BIN_EXE_todo_cli");
+    let store_path = temp_path("cli-done-no-focus.json");
+
+    write_store_with_focus(&store_path, serde_json::json!([]), None);
+
+    let output = Command::new(exe)
+        .args(["done"])
+        .env("TODOAPP_STORE_PATH", &store_path)
+        .output()
+        .expect("failed to run done command");
+
+    std::fs::remove_file(&store_path).ok();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERROR: invalid_input"));
+}
+
+#[test]
+fn done_command_focus_message_flag_records_history() {
+    let exe = env!("CARGO_BIN_EXE_todo_cli");
+    let store_path = temp_path("cli-done-focus-message.json");
+
+    write_store_with_focus(
+        &store_path,
+        serde_json::json!([
+            {
+                "id": "task-1",
+                "title": "focus",
+                "status": "pending",
+                "created_at": "2025-12-20T00:00:00Z",
+                "scheduled_at": null
+            }
+        ]),
+        Some("task-1"),
+    );
+
+    let output = Command::new(exe)
+        .args(["done", "--message", "ship it"])
+        .env("TODOAPP_STORE_PATH", &store_path)
+        .output()
+        .expect("failed to run done command");
+
+    assert!(output.status.success());
+
+    let stored: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&store_path).unwrap()).unwrap();
+    std::fs::remove_file(&store_path).ok();
+
+    let history = stored["tasks"][0]["completion_history"]
+        .as_array()
+        .expect("history array");
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["message"], "ship it");
     assert!(history[0]["completed_at"].is_string());
     OffsetDateTime::parse(
         history[0]["completed_at"]

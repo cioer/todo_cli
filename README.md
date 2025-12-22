@@ -83,19 +83,77 @@ The detailed configuration for octocov is managed in the `.octocov.yml` file.
 
 ### Prerequisites
 
-- [cargo-generate](https://github.com/cargo-generate/cargo-generate)
-- [gh](https://github.com/cli/cli)
+- [Rust](https://www.rust-lang.org/tools/install) (latest stable version)
+- C++ Build Tools (one of the following):
+  - **Windows (Recommended):** [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload.
+  - **Windows (Alternative):** MinGW-w64 (e.g., [w64devkit](https://github.com/skeeto/w64devkit)).
+  - **Linux/macOS:** GCC or Clang (usually pre-installed).
+
+### Setup on Windows (if using MinGW/w64devkit)
+
+If you do not have Visual Studio Build Tools installed, you can use `w64devkit`:
+
+1. Download [w64devkit](https://github.com/skeeto/w64devkit/releases).
+2. Extract the zip file (e.g., to `C:\w64devkit`).
+3. Add the `bin` folder to your PATH environment variable.
+4. Configure Rust to use the GNU toolchain:
+   ```bash
+   rustup toolchain install stable-x86_64-pc-windows-gnu
+   rustup default stable-x86_64-pc-windows-gnu
+   ```
+
+### Setup on Linux
+
+For Linux users, you will need the standard build tools and development headers for system notifications.
+
+1. **Install Rust:**
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+2. **Install Dependencies:**
+   The application requires `dbus` development headers for notifications support.
+
+   *   **Ubuntu/Debian:**
+       ```bash
+       sudo apt update
+       sudo apt install build-essential libdbus-1-dev pkg-config
+       ```
+
+   *   **Fedora/RHEL:**
+       ```bash
+       sudo dnf install @development-tools dbus-devel pkgconf-pkg-config
+       ```
+
+   *   **Arch Linux:**
+       ```bash
+       sudo pacman -S base-devel dbus
+       ```
+
+### Running the Project
+
+To run the CLI application:
+
+```bash
+# Run the todo_cli binary
+cargo run --bin todo_cli
+
+# View help
+cargo run --bin todo_cli -- --help
+```
 
 ### Build
 
 ```bash
-cargo build --release
+cargo build --release --bin todo_cli
 ```
 
 ### Running Tests
 
 ```bash
 cargo test
+# Or if you have cargo-nextest installed
+cargo nextest run
 ```
 
 ### Running Benchmarks

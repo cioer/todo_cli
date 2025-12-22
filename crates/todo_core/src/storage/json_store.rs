@@ -3,7 +3,7 @@ use crate::model::Task;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-pub const SCHEMA_VERSION: u32 = 4;
+pub const SCHEMA_VERSION: u32 = 5;
 const STORE_FILE_NAME: &str = "tasks.json";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -137,6 +137,7 @@ mod tests {
             scheduled_at: None,
             completed_at: None,
             completion_history: Vec::new(),
+            urgent: false,
         };
 
         save_tasks(&path, std::slice::from_ref(&task)).unwrap();
@@ -158,6 +159,7 @@ mod tests {
             scheduled_at: None,
             completed_at: None,
             completion_history: Vec::new(),
+            urgent: false,
         };
         let state = TaskState {
             tasks: vec![task.clone()],
@@ -186,6 +188,7 @@ mod tests {
         assert_eq!(loaded[0].scheduled_at, None);
         assert_eq!(loaded[0].completed_at, None);
         assert!(loaded[0].completion_history.is_empty());
+        assert!(!loaded[0].urgent);
     }
 
     #[test]
@@ -204,6 +207,19 @@ mod tests {
         );
         assert_eq!(loaded[0].completed_at, None);
         assert!(loaded[0].completion_history.is_empty());
+        assert!(!loaded[0].urgent);
+    }
+
+    #[test]
+    fn rejects_non_boolean_urgent_field() {
+        let path = temp_path("bad-urgent.json");
+        let content = "{\n  \"schema_version\": 5,\n  \"tasks\": [\n    {\n      \"id\": \"task-1\",\n      \"title\": \"demo\",\n      \"status\": \"pending\",\n      \"created_at\": \"2025-12-20T00:00:00Z\",\n      \"urgent\": \"yes\"\n    }\n  ]\n}";
+        fs::write(&path, content).unwrap();
+
+        let err = load_tasks(&path).unwrap_err();
+        fs::remove_file(&path).ok();
+
+        assert_eq!(err.code(), "invalid_data");
     }
 
     #[test]

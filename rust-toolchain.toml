@@ -1,2 +1,2 @@
 [toolchain]
-channel = "1.90"
+channel = "1.90-x86_64-pc-windows-gnu"

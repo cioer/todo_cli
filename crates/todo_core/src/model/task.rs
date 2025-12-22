@@ -18,6 +18,8 @@ pub struct Task {
     pub completed_at: Option<String>,
     #[serde(default)]
     pub completion_history: Vec<CompletionEntry>,
+    #[serde(default)]
+    pub urgent: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
