@@ -1,0 +1,7 @@
+{
+  "theme": "noir",
+  "aliases": {
+    "ls": "list today",
+    "fut": "list backlog"
+  }
+}

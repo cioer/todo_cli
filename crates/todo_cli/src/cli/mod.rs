@@ -72,6 +72,8 @@ pub enum Command {
     /// Schedule a task for a specific time
     ///
     /// Example: todo schedule 1 "2023-12-25 10:00"
+    /// Example: todo schedule 1 "2023-12-25 10:00:00"
+    /// Example: todo schedule 1 "2023-12-25" (Defaults to midnight)
     Schedule {
         id: String,
         datetime: String,
@@ -79,6 +81,8 @@ pub enum Command {
     /// Reschedule a task
     ///
     /// Example: todo reschedule 1 "2023-12-26 14:00"
+    /// Example: todo reschedule 1 "2023-12-26 14:00:00"
+    /// Example: todo reschedule 1 "2023-12-26" (Defaults to midnight)
     Reschedule {
         id: String,
         datetime: String,

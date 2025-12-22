@@ -1,16 +1,18 @@
-﻿[package]
+[package]
 name = "todo_cli"
 version = "0.0.1"
 edition = "2024"
 
 [[bin]]
-name = "todo"
+name = "todo_v3"
 path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
 todo_core = { path = "../todo_core" }
 serde_json = "1.0.145"
+time = { version = "0.3.36", features = ["macros", "formatting", "parsing"] }
+tabled = "0.20.0"
 
 [dev-dependencies]
 time = { version = "0.3.36", features = ["formatting", "local-offset"] }

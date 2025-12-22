@@ -18,31 +18,84 @@ fn status_label(status: TaskStatus) -> &'static str {
     }
 }
 
+use time::format_description::FormatItem;
+use time::macros::format_description;
+
+const DISPLAY_FORMAT: &[FormatItem<'static>] = format_description!("[hour]:[minute]:[second] - [day]/[month]/[year]");
+
+use tabled::{Table, Tabled};
+use tabled::settings::Style;
+
+#[derive(Tabled)]
+struct TaskRow {
+    #[tabled(rename = "Focus")]
+    prefix: String,
+    #[tabled(rename = "ID")]
+    id: String,
+    #[tabled(rename = "Title")]
+    title: String,
+    #[tabled(rename = "Status")]
+    status: String,
+    #[tabled(rename = "Created")]
+    created_at: String,
+    #[tabled(rename = "Scheduled")]
+    scheduled_at: String,
+}
+
 fn print_tasks_plain(
     tasks: &[Task],
     focused_task_id: Option<&str>,
     palette: &Palette,
 ) -> Result<(), AppError> {
+    let mut rows = Vec::new();
+
     for task in tasks {
         let prefix = if focused_task_id == Some(task.id.as_str()) {
-            palette.accentize("[FOCUS] ")
+            palette.accentize("*").to_string()
         } else {
             String::new()
         };
-        let scheduled_at = task.scheduled_at.as_deref().unwrap_or("-");
-        let scheduled_display = palette.mutedize(scheduled_at);
+        
+        let scheduled_at = match task.scheduled_at.as_deref() {
+            Some(ts) => {
+                let parsed = time::OffsetDateTime::parse(ts, &time::format_description::well_known::Rfc3339)
+                    .map_err(|_| AppError::invalid_data("invalid scheduled_at format"))?;
+                parsed.format(DISPLAY_FORMAT).unwrap_or_else(|_| ts.to_string())
+            }
+            None => "-".to_string(),
+        };
+        let scheduled_display = palette.mutedize(&scheduled_at).to_string();
+        
         let overdue = todo_core::task_api::task_overdue(task)?;
         let status = if overdue {
             format!("{} (overdue)", status_label(task.status))
         } else {
             status_label(task.status).to_string()
         };
-        let title = palette.accentize(&task.title);
-        let status_text = palette.accentize(&status);
-        println!(
-            "{}{} | {} | {} | {} | {}",
-            prefix, task.id, title, status_text, task.created_at, scheduled_display
-        );
+        let status_text = palette.accentize(&status).to_string();
+        
+        let created_at_display = time::OffsetDateTime::parse(&task.created_at, &time::format_description::well_known::Rfc3339)
+            .map(|dt| dt.format(DISPLAY_FORMAT).unwrap_or_else(|_| task.created_at.clone()))
+            .unwrap_or_else(|_| task.created_at.clone());
+
+        let title = palette.accentize(&task.title).to_string();
+
+        rows.push(TaskRow {
+            prefix,
+            id: task.id.clone(),
+            title,
+            status: status_text,
+            created_at: created_at_display,
+            scheduled_at: scheduled_display,
+        });
+    }
+
+    if !rows.is_empty() {
+        let mut table = Table::new(rows);
+        table.with(Style::modern());
+        println!("{}", table);
+    } else {
+        println!("No tasks found.");
     }
 
     Ok(())

@@ -4,7 +4,7 @@ use crate::notify::{Notifier, activation_argument, notifier_from_env};
 use crate::storage::json_store;
 use std::path::Path;
 use time::format_description::well_known::Rfc3339;
-use time::{Date, OffsetDateTime, UtcOffset};
+use time::{Date, OffsetDateTime, PrimitiveDateTime, UtcOffset, macros::format_description};
 
 #[derive(Debug, Clone)]
 pub struct ListResult {
@@ -493,15 +493,42 @@ fn update_schedule_with_path(
         return Err(AppError::invalid_input("datetime is required"));
     }
 
-    let parsed = OffsetDateTime::parse(trimmed_datetime, &Rfc3339)
-        .map_err(|_| AppError::invalid_input("datetime must be RFC3339"))?;
+    let local_offset = local_offset()?;
+    let parsed = if let Ok(dt) = PrimitiveDateTime::parse(
+        trimmed_datetime,
+        &format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"),
+    ) {
+        dt.assume_offset(local_offset)
+    } else if let Ok(dt) = PrimitiveDateTime::parse(
+        trimmed_datetime,
+        &format_description!("[year]-[month]-[day] [hour]:[minute]"),
+    ) {
+        dt.assume_offset(local_offset)
+    } else if let Ok(time) = time::Time::parse(
+        trimmed_datetime,
+        &format_description!("[hour]:[minute]"),
+    ) {
+        let today = OffsetDateTime::now_utc().to_offset(local_offset).date();
+        today.with_time(time).assume_offset(local_offset)
+    } else if let Ok(date) = Date::parse(
+        trimmed_datetime,
+        &format_description!("[year]-[month]-[day]"),
+    ) {
+        date.with_hms(0, 0, 0).unwrap().assume_offset(local_offset)
+    } else {
+        OffsetDateTime::parse(trimmed_datetime, &Rfc3339).map_err(|_| {
+            AppError::invalid_input(
+                "datetime must be in format 'YYYY-MM-DD HH:MM:SS', 'YYYY-MM-DD', or RFC3339",
+            )
+        })?
+    };
+
     let scheduled_at = parsed
         .format(&Rfc3339)
         .map_err(|err| AppError::invalid_data(err.to_string()))?;
 
     let mut state = json_store::load_state(path)?;
     let mut updated_task = None;
-    let local_offset = local_offset()?;
     let now_local = OffsetDateTime::now_utc().to_offset(local_offset);
 
     for task in &mut state.tasks {
